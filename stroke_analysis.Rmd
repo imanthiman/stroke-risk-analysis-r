@@ -1,0 +1,322 @@
+---
+title: "stroke_analysis"
+author: "Iman Taheri"
+date: "2025-11-24"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+# Stroke Risk Analysis in R
+
+Google Data Analytics Capstone • Kaggle Stroke Dataset
+
+This analysis uses a real-world stroke dataset to explore patterns, risk indicators, and demographic trends associated with stroke.
+The workflow follows the full Google Data Analytics framework: *Ask* → *Prepare* → *Process* → *Analyze* → *Share* → *Act*, implemented entirely in R.
+
+## Project Objectives
+
+	* Identify factors most strongly associated with stroke.
+	* Examine demographic and lifestyle patterns.
+	* Build clear, reproducible visualizations.
+	* Develop insights that can support early risk detection.
+
+## Required Packages
+```{r}
+library("tidyverse")
+library("ggplot2")
+library("janitor")
+library("readr")
+library("skimr")
+```
+
+## Dataset Importing and Overview
+
+```{r}
+stroke_df <- read_csv("data/stroke_data.csv")
+skim_without_charts(stroke_df)
+```
+
+## Data cleaning
+To ensure analytical reliability and prepare the dataset for modeling, several preprocessing steps were performed:
+
+### 1.Standardized column names
+
+To maintain consistency and avoid case-sensitivity issues, all variable names were converted to snake_case using clean_names() from the janitor package:
+
+```{r}
+clean_names(stroke_df)
+```
+
+### 2.Harmonized categorical labels
+The dataset contained a categorical variable (residence_type) with inconsistent capitalization. It was renamed for clarity:
+```{r}
+stroke_df <- stroke_df %>% rename(residence_type=Residence_type)
+```
+
+### 3.Removed rare and uninformative categories
+
+The gender column included a category labeled “Other”, which contained only one observation.
+To avoid unstable statistical estimates, the analysis was restricted to male and female patients
+```{r}
+stroke_df <- stroke_df %>% filter(gender %in% c("Male", "Female"))
+```
+
+### 4.Converted BMI to numeric and Removed incompelte BMI records
+
+The bmi feature was stored as character. It was converted to numeric to support correlation analysis and modeling and rows with invalid or missing BMI values (introduced during conversion) were removed:
+```{r}
+stroke_df$bmi <- as.numeric(stroke_df$bmi)
+stroke_df <- subset(stroke_df, complete.cases(bmi))
+```
+
+### Result
+After cleaning, the dataset was fully structured, free of missing critical values, and ready for exploratory data analysis and predictive modeling.
+```{r}
+colSums(is.na(stroke_df))
+```
+
+## Analysis
+This section examines how demographic, behavioral, and clinical factors relate to stroke occurrence. Both numerical summaries and visualizations are included to generate insights and identify meaningful patterns in the data.
+
+### 1.Gender and Stroke
+ * Numerical Summary
+```{r}
+stroke_df %>% group_by(gender) %>% summarize(sum(stroke == 1), sum(stroke == 0))
+```
+ * Visualization
+```{r}
+ggplot(stroke_df, aes(gender, fill = factor(stroke))) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Stroke Proportion by Gender",
+    fill = "Stroke"
+  )
+```
+
+ * Correlation
+```{r}
+table_gender <- table(stroke_df$gender, stroke_df$stroke)
+chisq.test(table_gender)
+```
+* Observation: The proportion of stroke events is similar across males and females.
+* Statistics: Chi-square test p = 0.68 → no significant association.
+* Interpretation: Gender does not appear to influence stroke risk in this dataset.
+* Practical Meaning: Gender-based differences in stroke risk may be negligible for this population.
+
+### 2.Hypertension and Stroke
+ * Numerical Summary
+```{r}
+stroke_df %>% group_by(hypertension) %>% summarize(sum(stroke == 1), sum(stroke == 0))
+```
+ * Visualization
+```{r}
+ggplot(stroke_df, aes(factor(hypertension), fill = factor(stroke))) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Stroke Proportion by Hypertension Status",
+    x = "Hypertension (0 = No, 1 = Yes)",
+    fill = "Stroke"
+  )
+```
+ 
+ * Correlation
+```{r}
+table_hypertension <- table(stroke_df$hypertension, stroke_df$stroke)
+chisq.test(table_hypertension)
+```
+* Observation: Individuals with hypertension show a visibly higher stroke rate.
+* Statistics: Chi-square test shows a significant association (p < 0.001).
+* Interpretation: Hypertension is a major determinant of stroke occurrence.
+* Practical Meaning: This reinforces established clinical evidence that high blood pressure is a leading modifiable risk factor.
+
+### 3.Heart Disease and Stroke
+ * Numerical Summary
+```{r}
+stroke_df %>% group_by(heart_disease) %>% summarize(sum(stroke == 1), sum(stroke == 0))
+```
+ * Visualization
+```{r}
+ggplot(stroke_df, aes(factor(heart_disease), fill = factor(stroke))) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Stroke Proportion by Heart Disease",
+    x = "Heart Disease",
+    fill = "Stroke"
+  )
+```
+
+ * Correlation
+```{r}
+table_heartdx <- table(stroke_df$heart_disease, stroke_df$stroke)
+chisq.test(table_heartdx)
+```
+* Observation: Stroke is more common among individuals with existing heart disease.
+* Statistics: Chi-square test confirms a significant relationship.
+* Interpretation: Cardiovascular comorbidity contributes strongly to stroke risk.
+* Practical Meaning: Patients with cardiac issues may require more aggressive stroke prevention strategies.
+ 
+### 4.Smoking Status and Stroke
+ * Numerical Summary
+```{r}
+stroke_df %>% group_by(smoking_status) %>% summarize(sum(stroke == 1), sum(stroke == 0))
+```
+ * Visualization
+```{r}
+ggplot(stroke_df, aes(smoking_status, fill = factor(stroke))) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Stroke Proportion by Smoking Status",
+    fill = "Stroke"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+ * Correlation
+```{r}
+table_smoking <- table(stroke_df$smoking_status, stroke_df$stroke)
+chisq.test(table_smoking)
+```
+* Observation: Stroke prevalence varies substantially across smoking categories.
+* Statistics: Chi-square test: χ² = 35.0, p ≈ 1e-7 (highly significant).
+* Interpretation: Smoking status is one of the strongest predictors in the dataset.
+* Practical Meaning: Both current and former smokers exhibit greater stroke risk, aligned with known pathophysiology.
+
+### 5.Residence Type and Stroke
+ * Numerical Summary
+```{r}
+stroke_df %>% group_by(residence_type) %>% summarize(sum(stroke == 1), sum(stroke == 0))
+```
+ * Visualization
+```{r}
+ggplot(stroke_df, aes(residence_type, fill = factor(stroke))) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Stroke Proportion by Residence Type",
+    fill = "Stroke"
+  )
+```
+ 
+ * Correlation
+```{r}
+table_residence <- table(stroke_df$residence_type, stroke_df$stroke)
+chisq.test(table_residence)
+```
+* Observation: Stroke proportions are similar between urban and rural residents.
+* Statistics: Chi-square suggests no significant relationship.
+* Interpretation: Living environment does not appear to affect stroke risk within this dataset.
+* Practical Meaning: Lifestyle or access to care differences may not be reflected here.
+
+### 6.Work Type and Stroke
+ * Numerical Summary
+```{r}
+stroke_df %>% group_by(work_type) %>% summarize(sum(stroke == 1), sum(stroke == 0))
+```
+ * Visualization
+```{r}
+ggplot(stroke_df, aes(work_type, fill = factor(stroke))) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Stroke Proportion by Work Type",
+    fill = "Stroke"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+ * Correlation
+```{r}
+table_work <- table(stroke_df$work_type, stroke_df$stroke)
+chisq.test(table_work)
+```
+* Observation: Stroke rates vary across work categories, with self-employed and government workers showing slightly higher proportions.
+* Statistics: Chi-square test shows a significant association (p < 0.001).
+* Interpretation: Occupational lifestyle or socioeconomic differences may influence stroke risk.
+* Practical Meaning: Work type may act as a proxy for stress, activity level, or chronic exposure factors.
+
+### 7.Ever Married and Stroke
+ * Numerical Summary
+```{r}
+stroke_df %>% group_by(ever_married) %>% summarize(sum(stroke == 1), sum(stroke == 0))
+```
+ * Visulization
+```{r}
+ggplot(stroke_df, aes(ever_married, fill = factor(stroke))) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Stroke Proportion by Marital Status",
+    fill = "Stroke"
+  )
+```
+
+ * Correlation
+```{r}
+table_marriage <- table(stroke_df$ever_married, stroke_df$stroke)
+chisq.test(table_marriage)
+```
+* Observation: Stroke proportions differ sharply between “Ever Married” vs “Never Married.”
+* Statistics: χ² = 53.08, p = 3.2e–13 → highly significant association.
+* Interpretation: Marital status is statistically linked with stroke risk.
+* Practical Meaning: This may reflect confounding factors such as age — married individuals tend to be older, and age is a major driver of stroke risk. The association is strong but likely indirect.
+
+### 8.BMI and Stroke
+ * Visualization
+```{r}
+ggplot(stroke_df, aes(bmi, fill=factor(stroke))) +
+  geom_density(alpha = 0.4) +
+  labs(
+    title = "BMI Distribution by Stroke Status",
+    x = "Stroke",
+    y = "BMI"
+  )
+```
+ 
+ * Correlation
+```{r}
+cor(stroke_df$stroke, stroke_df$bmi)
+```
+* Observation: The correlation between BMI and stroke occurrence is extremely weak.
+* Statistics: r = 0.042 → essentially no linear association.
+* Interpretation: BMI does not meaningfully predict stroke risk in this dataset.
+* Practical Meaning: Weight alone does not appear to indicate higher risk for stroke here; other factors may overshadow its impact.
+
+### 9.Glucose Level and Stroke
+ * Visualization
+```{r}
+ggplot(stroke_df, aes(avg_glucose_level, fill = factor(stroke))) +
+  geom_density(alpha = 0.4) +
+  labs(
+    title = "Glucose Level Distribution by Stroke Status",
+    x = "Average Glucose Level"
+  )
+```
+
+ * Correlation
+```{r}
+cor(stroke_df$stroke, stroke_df$avg_glucose_level)
+```
+* Observation: Stroke cases appear slightly more common among individuals with higher glucose levels.
+* Statistics: r = 0.139 → weak positive correlation.
+* Interpretation: Higher glucose may increase stroke risk, but the relationship is mild in this dataset.
+* Practical Meaning: This points in the expected clinical direction (hyperglycemia → vascular risk), but the effect is small, likely needing more variables to strengthen prediction.
+
+### 10.Age and Stroke
+ * Visualization
+```{r}
+ggplot(stroke_df, aes(age, fill = factor(stroke))) +
+  geom_density(alpha = 0.4) +
+  labs(title = "Age Distribution by Stroke Status")
+```
+ 
+ * Correlation
+```{r}
+cor(stroke_df$stroke, stroke_df$age)
+```
+* Observation: Stroke cases increase noticeably with age.
+* Statistics: r = 0.232 → moderate positive correlation.
+* Interpretation: Age shows the strongest linear relationship among numeric predictors.
+* Practical Meaning: Age is a clinically relevant risk factor and plays a meaningful role in stroke likelihood.
+
+## Overall Conclusion
+
+This analysis demonstrates that stroke risk is strongly shaped by a combination of demographic, clinical, and lifestyle factors. Age emerged as the most influential continuous variable, while hypertension, heart disease, and smoking status showed clear categorical associations with stroke outcomes. These findings align with long-standing clinical evidence, reinforcing the critical role of vascular health and lifestyle behavior in cerebrovascular disease. Conversely, variables such as BMI, gender, and residence type contributed little explanatory value, suggesting they may play minor or context-dependent roles in this dataset.
+Overall, this project highlights how structured data analysis can convert raw patient information into meaningful clinical insights that support real-world decision-making.
